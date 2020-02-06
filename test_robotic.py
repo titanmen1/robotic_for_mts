@@ -55,6 +55,7 @@ def check_peoples_for_fssp():
     wb.Save()
     # закрываем эйсель файл
     wb.Close()
+    app_excel.Quit()
 
 # Функция проверки людей на площадке http://sudrf.ru/
 def check_peoples_for_sudrf():
@@ -105,6 +106,7 @@ def check_peoples_for_sudrf():
     wb.Save()
     # закрываем эйсель файл
     wb.Close()
+    app_excel.Quit()
 
 
 
