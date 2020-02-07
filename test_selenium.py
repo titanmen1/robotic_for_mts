@@ -1,10 +1,14 @@
 import time
 from selenium.webdriver import Chrome
 from selenium.webdriver.support.ui import Select
+import requests
+import base64
 
 # Локальный путь к веб драйверу хрома
 path_webdriver = r'D:\chromedriver.exe'
 
+# апи кей
+API_KEY = ''
 
 # Функция получения данных с сайта http://fssprus.ru/
 def start_selenium_for_fssp(last_name, first_name, middle_name, birthday):
@@ -25,10 +29,70 @@ def start_selenium_for_fssp(last_name, first_name, middle_name, birthday):
     # Делаю паузу, чтобы сайт успел прогрузиться
     time.sleep(3)
 
-    # после этого необходимо ввести капчу, так как это тестовый проект, капчу я вводил рюками.
-    # Но я думаю, что можно создать программу для распознования этой капчи
-    if browser.find_element_by_class_name('popup-wrapper'):
-        time.sleep(10)
+    # функция отправки изображения капчи стороннему сервис для распознования и ввод полученных данных
+    def capcha():
+        time.sleep(3)
+        # находим изображение капчи
+        x = browser.find_element_by_id('capchaVisual')
+        # получаем кодировку base64 изображения
+        image_code_base64 = x.get_attribute('src')
+        image_code_base64 = image_code_base64.replace('data:image/jpeg;base64,','')
+        # декодируем изображение
+        dec = base64.b64decode(image_code_base64)
+        # Сохраняем изображение
+        filename = 'some_image.jpg'
+        with open(filename, 'wb') as f:
+            f.write(dec)
+
+        # создем цикл, который будет отправялть запрос, до тех пор пока не получим подтвержения получения изображения
+        get_task_id = False
+        while not get_task_id:
+
+            r = requests.post('https://rucaptcha.com/in.php',
+                              data={'key': API_KEY, 'method': 'post', 'lang': 'ru', 'json': 1},
+                              files={'file': open(filename, 'rb')}
+                              )
+            # Если получили подтвержение, то выходим из цикла
+            if r.json()['status'] == 1:
+                get_task_id = True
+            # Если сервис перегружен, ждем 5 сек и пробуем заново
+            else:
+                time.sleep(5)
+
+        capcha_ready = False
+        # создаем цикл, который будет получать ответ
+        while not capcha_ready:
+            r1 = requests.get(
+                'https://rucaptcha.com/res.php?key={}&action={}&id={}&json=1'.format(
+                    API_KEY, 'get',
+                    r.json()['request'])
+            )
+            # Если капча еще не разгадана, ждем 3 сек и пробуем еще раз
+            if r1.json()['request'] == 'CAPCHA_NOT_READY':
+                time.sleep(3)
+            # если разгадана, то выходим из цикла
+            else:
+                capcha_ready = True
+
+        # получаем текст капчи
+        text_for_capcha = r1.json()['request']
+        # вводим текст
+        browser.find_element_by_id("captcha-popup-code").send_keys(text_for_capcha)
+        # нажимаем отправить капчу
+        browser.find_element_by_id("ncapcha-submit").click()
+
+        time.sleep(3)
+
+    capcha_passed = False
+    # создаю цикл, который запускает функцию отправки капчи и ввод ответа
+    while not capcha_passed:
+        # Если капча по какой то причине не пройдена, то функция запускается заново
+        try:
+            if browser.find_element_by_class_name('popup-wrapper'):
+                capcha()
+        # Если капча успешно пройдена, цикл заканчивается
+        except:
+            capcha_passed = True
 
     # Я создал список с заголовками исполнительных производств
     # и в этот же список буду добавять найденые исполнительные производства
